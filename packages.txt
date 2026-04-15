@@ -1,0 +1,2 @@
+# No system-level dependencies required.
+# Veryfi OCR runs via API — no binary to install.
