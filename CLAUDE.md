@@ -15,12 +15,20 @@ Florida rental portfolio management app. Mobile-first Streamlit app backed by Go
 - **OCR:** Veryfi API (~$0.08/receipt, pay-per-use) — sign up at veryfi.com, add 3 keys to `.env`
 - **Deployment:** Local-first; cloud-ready for Streamlit Community Cloud
 
+## Property Addresses
+- **Winter Garden (Regal):** 13 Regal Pl
+- **Winter Garden (Charlotte):** unknown
+- **Palm Harbor:** 254 W Canal Dr
+- **Tampa:** 8723 Elmwood Lane
+
 ## Project Structure
 ```
 app.py                  # Entry point + password gate + lease renewal alert banners
 config.py               # ALL constants — properties, IRS categories, rates, sheet tab names
 .env                    # Local secrets (gitignored — copy from .env.example)
 credentials.json        # Google Service Account key (gitignored)
+gmail_oauth_client.json # Gmail OAuth Desktop App credentials (gitignored)
+gmail_token.json        # Gmail OAuth token — auto-generated on first --setup run (gitignored)
 
 auth/google_auth.py     # Dual-mode auth: .env locally, st.secrets on Cloud
 sheets/
@@ -42,6 +50,7 @@ utils/cache.py          # safe_get_*() wrappers — graceful degradation on Shee
 
 pages/
   01_expense_capture.py   # Camera/upload (jpg/png/pdf) → OCR → IRS Schedule E form
+                          # Defaults: Palm Harbor, Supplies; Tools checkbox applies 80% deduction
   02_mileage_tracker.py   # Odometer → miles + deduction at IRS rate; vehicle dropdown; defaults to Tampa
   03_maintenance_log.py   # Issue log, status updates, photo uploads to Drive
   04_insurance_vault.py   # Read-only policy cards (populated manually in Sheets)
@@ -52,6 +61,12 @@ pages/
   09_inspection_log.py    # Move-in/out, annual, ad-hoc inspections + photos
   10_utility_tracker.py   # Utility bills by property, unpaid alerts, YTD totals
   11_property_photos.py   # Zillow/listing photos, auto-organized by property in Drive
+
+scripts/
+  gmail_poller.py         # Standalone Gmail receipt importer (run on demand or via Task Scheduler)
+                          # Watches 'rental-receipts' Gmail label, parses vendor/date/amount,
+                          # writes to Expenses sheet. Uses OAuth (gmail_oauth_client.json).
+                          # Run: py scripts/gmail_poller.py [--dry-run] [--verbose] [--setup]
 ```
 
 ## Google Sheets Schema (one spreadsheet, 8 tabs)
@@ -84,6 +99,34 @@ Property Photos/        ← DRIVE_FOLDER_PHOTOS (parent folder)
 - **Mobile-first UI:** `layout="centered"`, all buttons `use_container_width=True`, single-column forms
 - **Dual-mode secrets:** `auth/google_auth.py` tries `st.secrets` first (cloud), then `credentials.json` (local)
 - **Drive subfolders** for property photos are created automatically via `get_or_create_subfolder()` — no manual folder setup needed beyond the parent
+- **gmail_poller.py is standalone** — it does NOT import from `sheets/client.py` or `auth/google_auth.py` (both have Streamlit dependencies). It writes to Sheets directly via gspread with the service account.
+
+## Gmail Poller — How It Works
+- Watches Gmail label `rental-receipts` (configurable in `.env` as `GMAIL_LABEL_NAME`)
+- For each email: tries Veryfi OCR on attachments first, falls back to HTML body parsing
+- Property detection order: subject keyword → body address hint → default (Palm Harbor)
+- Amount detection: labeled regex patterns → frequency fallback (most common non-zero `$XX.XX`)
+- Processed emails moved to `rental-receipts-done` label automatically
+- Tools 80% deduction: add `TOOLS` to the email subject when forwarding
+
+### Subject line shortcuts
+| Subject contains | Property |
+|---|---|
+| `PH`, `palm harbor`, `254 w canal`, `canal dr` | Palm Harbor |
+| `TPA`, `tampa`, `8723 elmwood`, `elmwood` | Tampa |
+| `WGR`, `regal`, `13 regal` | Winter Garden (Regal) |
+| `WGC`, `charlotte` | Winter Garden (Charlotte) |
+| `TOOLS` | applies 80% deduction to saved amount |
+
+### Body address hints (auto-detected, no subject edit needed)
+| Body contains | Property |
+|---|---|
+| `8723 elmwood` or `elmwood lane` | Tampa |
+| `254 w canal` or `canal dr` | Palm Harbor |
+| `13 regal` or `regal` | Winter Garden (Regal) |
+
+### Category auto-detection (from subject keywords)
+`pest`, `clean` → Cleaning and Maintenance | `repair`, `maintenance` → Repairs | `insurance` → Insurance | `utility` → Utilities
 
 ## Running Locally
 ```bash
@@ -107,9 +150,25 @@ Phone access (same WiFi): `http://YOUR_PC_IP:8501`
 - [x] Add `Inspections` tab to Google Sheet
 - [x] Add `Utilities` tab to Google Sheet
 - [x] Create "Property Photos" Drive folder → share with service account → add ID to `.env` as `DRIVE_FOLDER_PHOTOS`
+- [x] Gmail API enabled in Google Cloud Console
+- [x] OAuth 2.0 Desktop Client created → `gmail_oauth_client.json` in project root
+- [x] Gmail OAuth consent screen configured (External, test user: dataistoday@gmail.com)
+- [x] Gmail poller authorized → `gmail_token.json` saved
+- [x] Gmail label `rental-receipts` created
+- [x] Poller tested successfully — Rowland Pest email parsed correctly
 
 ## Streamlit Community Cloud
 - [x] GitHub repo created: `dataistoday/rental-manager`
 - [x] Deployed to Streamlit Community Cloud (`master` branch, `app.py`)
 - [x] Secrets configured in Streamlit Cloud dashboard (service account, Drive folder IDs, Veryfi keys, APP_PASSWORD)
 - [x] App live and credentials verified working
+
+## Expense Capture Defaults (as of 2026-04-16)
+- Default property: **Palm Harbor**
+- Default category: **Supplies**
+- Tools checkbox: saves 80% of receipt total; stamps full amount in Notes
+
+## Gmail Poller — Next Steps
+- [ ] Set up Windows Task Scheduler to run `py scripts/gmail_poller.py` every 5 minutes
+- [ ] Set up Gmail filters to auto-label receipts from frequent vendors (Rowland Pest, Home Depot, etc.)
+- [ ] Add Charlotte property street address to `BODY_PROPERTY_HINTS` and `PROPERTY_ALIASES` in `scripts/gmail_poller.py` once known

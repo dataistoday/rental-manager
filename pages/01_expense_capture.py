@@ -78,8 +78,11 @@ def field_label(label: str, key: str) -> str:
     return label
 
 
+_palm_harbor_idx = PROPERTIES.index("Palm Harbor") if "Palm Harbor" in PROPERTIES else 0
+_supplies_idx = IRS_SCHEDULE_E_CATEGORIES.index("Supplies") if "Supplies" in IRS_SCHEDULE_E_CATEGORIES else 0
+
 with st.form("expense_form", clear_on_submit=True):
-    prop = st.selectbox("Property *", PROPERTIES)
+    prop = st.selectbox("Property *", PROPERTIES, index=_palm_harbor_idx)
 
     col1, col2 = st.columns(2)
     with col1:
@@ -88,7 +91,7 @@ with st.form("expense_form", clear_on_submit=True):
             value=ocr_result.get("date") or datetime.date.today(),
         )
     with col2:
-        category = st.selectbox("Category (Schedule E) *", IRS_SCHEDULE_E_CATEGORIES)
+        category = st.selectbox("Category (Schedule E) *", IRS_SCHEDULE_E_CATEGORIES, index=_supplies_idx)
 
     vendor = st.text_input(
         field_label("Vendor / Payee *", "vendor"),
@@ -107,6 +110,13 @@ with st.form("expense_form", clear_on_submit=True):
         )
     with col4:
         payment_method = st.selectbox("Payment Method", [""] + PAYMENT_METHODS)
+
+    is_tools = st.checkbox(
+        "Tools purchase (deduct 80%)",
+        help="Check if this is a tool purchase. The saved amount will be 80% of the receipt total (IRS partial deductibility).",
+    )
+    if is_tools and amount > 0:
+        st.info(f"Deductible amount: **{format_currency(amount * 0.80)}** (80% of {format_currency(amount)})")
 
     description = st.text_input("Description", placeholder="Brief description of what was purchased")
     notes = st.text_input("Notes (optional)")
@@ -131,6 +141,10 @@ with st.form("expense_form", clear_on_submit=True):
                 st.error(e)
         else:
             try:
+                save_amount = round(amount * 0.80, 2) if is_tools else amount
+                tools_note = f"Tools (full receipt: {format_currency(amount)}, 80% deducted)" if is_tools else ""
+                final_notes = "\n".join(filter(None, [tools_note, notes.strip()]))
+
                 receipt_url = ""
                 if receipt_file:
                     ts_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -142,15 +156,16 @@ with st.form("expense_form", clear_on_submit=True):
                     property_name=prop,
                     date=expense_date,
                     vendor=vendor.strip(),
-                    amount=amount,
+                    amount=save_amount,
                     category=category,
                     description=description.strip(),
                     receipt_url=receipt_url,
                     payment_method=payment_method,
-                    notes=notes.strip(),
+                    notes=final_notes,
                 )
                 st.success(
-                    f"Saved! {format_currency(amount)} · {category} · {prop}"
+                    f"Saved! {format_currency(save_amount)} · {category} · {prop}"
+                    + (" (80% of tools receipt)" if is_tools else "")
                 )
             except Exception as e:
                 st.error(f"Failed to save: {e}")
