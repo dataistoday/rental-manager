@@ -167,6 +167,7 @@ Phone access (same WiFi): `http://YOUR_PC_IP:8501`
 - [x] Gmail poller authorized → `gmail_token.json` saved
 - [x] Gmail label `rental-receipts` created
 - [x] Poller tested successfully — Rowland Pest email parsed correctly
+- [x] Utility 50% rule wired up for Duke Energy, Metro Net, Winter Garden Utilities (all → Winter Garden (Regal), category=Utilities)
 
 ## Streamlit Community Cloud
 - [x] GitHub repo created: `dataistoday/rental-manager`
@@ -192,5 +193,11 @@ Phone access (same WiFi): `http://YOUR_PC_IP:8501`
 
 ## Gmail Poller — Next Steps
 - [ ] Set up Windows Task Scheduler to run `py scripts/gmail_poller.py` every 5 minutes
-- [ ] Set up Gmail filters to auto-label receipts from frequent vendors (Rowland Pest, Home Depot, etc.)
+- [ ] Set up Gmail filters to auto-label receipts from frequent vendors:
+    - Rowland Pest, Home Depot, Lowes, etc. → apply `rental-receipts`
+    - `duke-energyalert.com`, `metronet`, `cityofwintergarden` → apply `rental-receipts` (will auto-trigger 50% utility rule)
 - [ ] Add Charlotte property street address to `BODY_PROPERTY_HINTS` and `PROPERTY_ALIASES` in `scripts/gmail_poller.py` once known
+
+## Known Sender Domains (confirmed 2026-04-16)
+- **Duke Energy billing:** `DukeEnergyPayConfirmation@duke-energyalert.com` — caught by `duke-energy` substring match
+- *(add Metro Net and Winter Garden Utilities domains here once first bill arrives)*
