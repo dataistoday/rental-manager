@@ -42,7 +42,7 @@ utils/cache.py          # safe_get_*() wrappers — graceful degradation on Shee
 
 pages/
   01_expense_capture.py   # Camera/upload (jpg/png/pdf) → OCR → IRS Schedule E form
-  02_mileage_tracker.py   # Odometer → miles + deduction at IRS rate
+  02_mileage_tracker.py   # Odometer → miles + deduction at IRS rate; vehicle dropdown; defaults to Tampa
   03_maintenance_log.py   # Issue log, status updates, photo uploads to Drive
   04_insurance_vault.py   # Read-only policy cards (populated manually in Sheets)
   05_vendor_directory.py  # Filterable contractor list
@@ -56,7 +56,7 @@ pages/
 
 ## Google Sheets Schema (one spreadsheet, 8 tabs)
 - **Expenses:** timestamp, property, date, vendor, amount, category, description, receipt_url, payment_method, notes
-- **Mileage:** timestamp, date, property, purpose, start_odometer, end_odometer, miles, irs_rate, deduction_amount, notes
+- **Mileage:** timestamp, date, property, purpose, start_odometer, end_odometer, miles, irs_rate, deduction_amount, notes, vehicle
 - **Maintenance:** id, timestamp, last_updated, property, issue_title, description, status, priority, contractor, estimated_cost, actual_cost, photo_urls, resolution_notes
 - **Insurance:** property, policy_number, insurer, agent_name, agent_phone, agent_email, premium_annual, renewal_date, coverage_type, doc_url, notes
 - **Vendors:** timestamp, company_name, contact_name, phone, email, trade, properties_served, hourly_rate, rating, notes, last_used_date
@@ -77,7 +77,7 @@ Property Photos/        ← DRIVE_FOLDER_PHOTOS (parent folder)
 ```
 
 ## Key Design Rules
-- **`config.py` is the only place** to add properties, IRS categories, vendor trades, inspection types, or utility types
+- **`config.py` is the only place** to add properties, IRS categories, vendor trades, inspection types, utility types, or vehicles
 - **Never hardcode property names** in page files — always import from `config.PROPERTIES`
 - **All writes** go through `sheets/client.py` (`append_row` / `update_row`) — never call gspread directly from pages
 - **All reads** go through `utils/cache.py` `safe_get_*()` functions for graceful degradation
@@ -94,7 +94,7 @@ streamlit run app.py      # → http://localhost:8501
 ```
 Phone access (same WiFi): `http://YOUR_PC_IP:8501`
 
-## Setup Status (as of 2026-04-15)
+## Setup Status (as of 2026-04-16)
 - [x] Google Cloud project created (`rental-manager-493419`) with Sheets + Drive APIs enabled
 - [x] Service Account created → `credentials.json` in project root
 - [x] `.env` filled in (SPREADSHEET_ID, Drive folder IDs, Veryfi keys)
@@ -104,13 +104,12 @@ Phone access (same WiFi): `http://YOUR_PC_IP:8501`
 - [x] Google Sheet tab names confirmed: `Expenses`, `Mileage`, `Maintenance`, `Insurance`, `Vendors`, `Tenants`
 - [x] 3 Drive folders shared with service account email
 - [x] `APP_PASSWORD` set
-- [ ] Add `Inspections` tab to Google Sheet
-- [ ] Add `Utilities` tab to Google Sheet
-- [ ] Create "Property Photos" Drive folder → share with service account → add ID to `.env` as `DRIVE_FOLDER_PHOTOS`
+- [x] Add `Inspections` tab to Google Sheet
+- [x] Add `Utilities` tab to Google Sheet
+- [x] Create "Property Photos" Drive folder → share with service account → add ID to `.env` as `DRIVE_FOLDER_PHOTOS`
 
-## Streamlit Community Cloud (future)
-- No system packages needed — Veryfi runs via API, nothing to install on the server
-- Paste service account JSON as `[GOOGLE_SERVICE_ACCOUNT]` TOML block in Streamlit secrets
-- Add `VERYFI_CLIENT_ID`, `VERYFI_CLIENT_SECRET`, `VERYFI_API_KEY` to Streamlit secrets
-- Add `DRIVE_FOLDER_PHOTOS` to Streamlit secrets
-- Set `APP_PASSWORD` in secrets to enable the password gate
+## Streamlit Community Cloud
+- [x] GitHub repo created: `dataistoday/rental-manager`
+- [x] Deployed to Streamlit Community Cloud (`master` branch, `app.py`)
+- [x] Secrets configured in Streamlit Cloud dashboard (service account, Drive folder IDs, Veryfi keys, APP_PASSWORD)
+- [x] App live and credentials verified working
