@@ -10,7 +10,7 @@ from config import IRS_MILEAGE_RATE_CURRENT
 COLUMNS = [
     "timestamp", "date", "property", "purpose",
     "start_odometer", "end_odometer", "miles",
-    "irs_rate", "deduction_amount", "notes",
+    "irs_rate", "deduction_amount", "notes", "vehicle",
 ]
 
 
@@ -30,6 +30,7 @@ def add_mileage(
     end_odometer: float,
     notes: str = "",
     irs_rate: float = IRS_MILEAGE_RATE_CURRENT,
+    vehicle: str = "",
 ) -> None:
     """Append one mileage row. Calculates miles and deduction automatically."""
     miles = round(end_odometer - start_odometer, 1)
@@ -45,5 +46,6 @@ def add_mileage(
         irs_rate,
         deduction,
         notes,
+        vehicle,
     ]
     append_row("mileage", row)

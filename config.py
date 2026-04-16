@@ -41,7 +41,8 @@ IRS_SCHEDULE_E_CATEGORIES = [
 # IRS standard mileage rate — update each January
 IRS_MILEAGE_RATE_2024 = 0.67
 IRS_MILEAGE_RATE_2025 = 0.70
-IRS_MILEAGE_RATE_CURRENT = IRS_MILEAGE_RATE_2025
+IRS_MILEAGE_RATE_2026 = 0.70  # TODO: confirm 2026 rate at irs.gov when announced
+IRS_MILEAGE_RATE_CURRENT = IRS_MILEAGE_RATE_2026
 
 MAINTENANCE_STATUSES = ["Open", "In Progress", "Resolved"]
 MAINTENANCE_PRIORITIES = ["Low", "Medium", "High", "Emergency"]
@@ -102,6 +103,14 @@ MILEAGE_PURPOSES = [
     "Supply Run",
     "Bank / Financial",
     "Other",
+]
+
+# Update with your actual vehicle names
+VEHICLES = [
+    "Tacoma",
+    "Mini",
+    "FJ",
+    "Camper",
 ]
 
 # Google Drive folder IDs — fill these in after Google Cloud setup

@@ -12,11 +12,11 @@ import pandas as pd
 from sheets.mileage import add_mileage
 from utils.cache import safe_get_mileage, show_fetch_error
 from utils.formatting import format_currency, format_miles, format_date
-from config import PROPERTIES, MILEAGE_PURPOSES, IRS_MILEAGE_RATE_CURRENT
+from config import PROPERTIES, MILEAGE_PURPOSES, VEHICLES, IRS_MILEAGE_RATE_CURRENT
 
 st.set_page_config(page_title="Mileage Tracker", page_icon="🚗", layout="centered")
 st.title("🚗 Mileage Tracker")
-st.caption(f"IRS rate: ${IRS_MILEAGE_RATE_CURRENT}/mile (2025)")
+st.caption(f"IRS rate: ${IRS_MILEAGE_RATE_CURRENT}/mile (2026)")
 
 # ---------------------------------------------------------------------------
 # Log Trip form
@@ -24,7 +24,12 @@ st.caption(f"IRS rate: ${IRS_MILEAGE_RATE_CURRENT}/mile (2025)")
 st.subheader("Log a Trip")
 
 with st.form("mileage_form", clear_on_submit=True):
-    prop = st.selectbox("Property (destination) *", PROPERTIES)
+    prop = st.selectbox(
+        "Property (destination) *",
+        PROPERTIES,
+        index=PROPERTIES.index("Tampa"),
+    )
+    vehicle = st.selectbox("Vehicle *", VEHICLES)
     purpose = st.selectbox("Purpose *", MILEAGE_PURPOSES)
     trip_date = st.date_input("Date", value=datetime.date.today())
 
@@ -63,6 +68,7 @@ with st.form("mileage_form", clear_on_submit=True):
                     start_odometer=start_odo,
                     end_odometer=end_odo,
                     notes=notes.strip(),
+                    vehicle=vehicle,
                 )
                 st.success(
                     f"Trip saved! {round(end_odo - start_odo, 1)} miles → "
@@ -75,7 +81,12 @@ with st.form("mileage_form", clear_on_submit=True):
 # History
 # ---------------------------------------------------------------------------
 st.markdown("---")
-st.subheader("Trip History")
+col_title, col_refresh = st.columns([4, 1])
+col_title.subheader("Trip History")
+if col_refresh.button("Refresh", use_container_width=True):
+    from sheets.client import get_all_records
+    get_all_records.clear()
+    st.rerun()
 
 df, err = safe_get_mileage()
 show_fetch_error(err)
@@ -101,10 +112,14 @@ c1, c2 = st.columns(2)
 c1.metric("Total Miles", f"{total_miles:,.1f}")
 c2.metric("Total Deduction", format_currency(total_deduction))
 
-# Display table
-display_df = df[["date", "property", "purpose", "miles", "deduction_amount", "notes"]].copy()
-display_df.columns = ["Date", "Property", "Purpose", "Miles", "Deduction", "Notes"]
-display_df["Deduction"] = display_df["Deduction"].apply(
-    lambda x: format_currency(x) if x else ""
-)
+# Display table — vehicle column is optional (may not exist in older rows)
+wanted = ["date", "property", "vehicle", "purpose", "miles", "deduction_amount", "notes"]
+present = [c for c in wanted if c in df.columns]
+display_df = df[present].copy()
+display_df.columns = [c.replace("_", " ").title() for c in present]
+if "Deduction Amount" in display_df.columns:
+    display_df.rename(columns={"Deduction Amount": "Deduction"}, inplace=True)
+    display_df["Deduction"] = display_df["Deduction"].apply(
+        lambda x: format_currency(x) if x else ""
+    )
 st.dataframe(display_df, use_container_width=True, hide_index=True)
