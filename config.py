@@ -105,7 +105,7 @@ MILEAGE_PURPOSES = [
     "Other",
 ]
 
-# Update with your actual vehicle names
+# Vehicles used for mileage tracking — update with your actual vehicle names
 VEHICLES = [
     "Tacoma",
     "Mini",
