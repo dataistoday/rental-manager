@@ -168,6 +168,17 @@ Phone access (same WiFi): `http://YOUR_PC_IP:8501`
 - Default category: **Supplies**
 - Tools checkbox: saves 80% of receipt total; stamps full amount in Notes
 
+## Gmail Poller — Parsing Notes
+- Self-forwarded emails (from your own Gmail): vendor extracted from subject line, not From: header
+- Subject format for self-forwards: `[property code] [TOOLS] Vendor Name` e.g. `PH Home Depot`, `tools PH Harbor Freight`
+- Amount fallback: if no labeled pattern matches, uses frequency analysis (most common non-zero `$XX.XX` in email body)
+- HTML emails: tags are stripped before regex matching so amounts split across table cells are found
+
+## Mileage Tracker Notes
+- Refresh button on Trip History clears the 5-minute read cache instantly — use this after manual Sheet edits
+- Manually backfilled rows: dates entered as `2/1` style are fine if Google Sheets stores them as actual dates (right-aligned = date, left-aligned = text)
+- Deduction amount on manually entered rows: fill as `miles × 0.70`; app will calculate from miles column if deduction_amount is blank
+
 ## Gmail Poller — Next Steps
 - [ ] Set up Windows Task Scheduler to run `py scripts/gmail_poller.py` every 5 minutes
 - [ ] Set up Gmail filters to auto-label receipts from frequent vendors (Rowland Pest, Home Depot, etc.)
