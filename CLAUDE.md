@@ -128,6 +128,17 @@ Property Photos/        ← DRIVE_FOLDER_PHOTOS (parent folder)
 ### Category auto-detection (from subject keywords)
 `pest`, `clean` → Cleaning and Maintenance | `repair`, `maintenance` → Repairs | `insurance` → Insurance | `utility` → Utilities
 
+### Winter Garden (Regal) utility senders — auto 50% rule
+Emails from (or forwarded with subject referencing) these vendors are forced to
+Winter Garden (Regal) + category=Utilities + 50% deduction (full amount stamped in Notes):
+| Sender/subject contains | Vendor saved | Covers |
+|---|---|---|
+| `duke-energy`, `duke energy` | Duke Energy | Electric |
+| `metronet`, `metro net` | Metro Net | Internet |
+| `cityofwintergarden`, `winter garden utilities`, `cwgdn` | Winter Garden Utilities | Water/sewer |
+
+Rule lives in `UTILITY_50_SENDERS` in `scripts/gmail_poller.py` — add new senders there.
+
 ## Running Locally
 ```bash
 py -m venv .venv          # Windows: use "py" not "python"

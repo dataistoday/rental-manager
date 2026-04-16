@@ -165,6 +165,20 @@ DATE_PATTERNS = [
     (r"(\d{1,2}/\d{1,2}/\d{2})",                             "%m/%d/%y"),
 ]
 
+# Utility senders that always map to Winter Garden (Regal), category=Utilities, 50% deduction.
+# Matched case-insensitively against the From: header AND subject line (handles forwards).
+# Key = substring to look for, value = canonical vendor name written to the sheet.
+UTILITY_50_SENDERS: dict[str, str] = {
+    "duke-energy":              "Duke Energy",
+    "duke energy":              "Duke Energy",
+    "metronet":                 "Metro Net",
+    "metro net":                "Metro Net",
+    "cityofwintergarden":       "Winter Garden Utilities",
+    "winter garden utilities":  "Winter Garden Utilities",
+    "cwgdn":                    "Winter Garden Utilities",
+}
+
+
 # Body-text hints that indicate a specific property (scans the email body, not just subject).
 # Checked only when the subject contains no property code.
 # Keys are lowercase substrings to look for; values map to PROPERTIES entries.
@@ -300,6 +314,19 @@ def parse_property_from_subject(subject: str) -> str:
 
 def is_tools_purchase(subject: str) -> bool:
     return "tools" in subject.lower() or "tool" in subject.lower()
+
+
+def match_utility_sender(sender: str, subject: str) -> str | None:
+    """
+    Return the canonical vendor name if this email comes from (or references)
+    one of the Winter Garden (Regal) utility providers. Returns None otherwise.
+    Matches sender AND subject so forwarded utility bills still trigger the rule.
+    """
+    haystack = f"{sender} {subject}".lower()
+    for keyword, vendor in UTILITY_50_SENDERS.items():
+        if keyword in haystack:
+            return vendor
+    return None
 
 
 def extract_attachments(service, message: dict) -> list[tuple[bytes, str, str]]:
@@ -546,6 +573,8 @@ def process_message(
     # ── Determine property and flags from subject ────────────────────────────
     prop_from_subject = parse_property_from_subject(subject)
     is_tools          = is_tools_purchase(subject)
+    utility_vendor    = match_utility_sender(sender, subject)
+    is_utility_50     = utility_vendor is not None
 
     # ── Try OCR on attachments first ─────────────────────────────────────────
     attachments = extract_attachments(service, message)
@@ -584,25 +613,33 @@ def process_message(
     if not date:
         date = datetime.date.today()
 
-    # ── Property: subject first, then body hints, then default ───────────────
-    # parse_property_from_subject returns DEFAULT_PROPERTY when nothing matched,
-    # so we need to know if it was a real match or just the default.
+    # ── Property: utility-sender wins → subject → body → default ─────────────
     subject_had_hint = any(alias in subject.lower() for alias in PROPERTY_ALIASES)
-    if subject_had_hint:
+    if is_utility_50:
+        prop   = "Winter Garden (Regal)"
+        vendor = utility_vendor
+    elif subject_had_hint:
         prop = prop_from_subject
     else:
         prop = parse_property_from_body(body_text) or prop_from_subject
-    if verbose and not subject_had_hint:
+    if verbose and not subject_had_hint and not is_utility_50:
         print(f"  Property resolved from body: {prop}")
 
-    # ── Apply 80% tools deduction ─────────────────────────────────────────────
-    full_amount  = amount
-    save_amount  = round(amount * 0.80, 2) if (is_tools and amount) else amount
+    # ── Apply deduction rule (utility 50% or tools 80%) ──────────────────────
+    full_amount = amount
+    if amount and is_utility_50:
+        save_amount = round(amount * 0.50, 2)
+    elif amount and is_tools:
+        save_amount = round(amount * 0.80, 2)
+    else:
+        save_amount = amount
 
     # ── Build description and notes ───────────────────────────────────────────
     description = subject.strip() or f"Email receipt from {vendor}"
     notes_parts = ["Auto-imported from Gmail"]
-    if is_tools and full_amount:
+    if is_utility_50 and full_amount:
+        notes_parts.append(f"Utility 50% rule: full bill ${full_amount:.2f}, saved ${save_amount:.2f}")
+    elif is_tools and full_amount:
         notes_parts.append(f"Tools 80% rule: full receipt ${full_amount:.2f}, saved ${save_amount:.2f}")
     if not ocr_result.get("amount") and amount:
         notes_parts.append("NEEDS_REVIEW: amount from email body, not OCR")
@@ -611,29 +648,33 @@ def process_message(
         save_amount = 0.0
     notes = " | ".join(notes_parts)
 
-    # ── Determine category (default Supplies, override by subject keyword) ────
-    category = DEFAULT_CATEGORY
-    subject_lower = subject.lower()
-    category_map = {
-        "repair":      "Repairs",
-        "maintenance": "Cleaning and Maintenance",
-        "pest":        "Cleaning and Maintenance",
-        "clean":       "Cleaning and Maintenance",
-        "insurance":   "Insurance",
-        "utility":     "Utilities",
-        "utilities":   "Utilities",
-        "legal":       "Legal and Professional Fees",
-        "advertising": "Advertising",
-    }
-    for kw, cat in category_map.items():
-        if kw in subject_lower:
-            category = cat
-            break
+    # ── Determine category (utility sender forces Utilities, else keyword map) ─
+    if is_utility_50:
+        category = "Utilities"
+    else:
+        category = DEFAULT_CATEGORY
+        subject_lower = subject.lower()
+        category_map = {
+            "repair":      "Repairs",
+            "maintenance": "Cleaning and Maintenance",
+            "pest":        "Cleaning and Maintenance",
+            "clean":       "Cleaning and Maintenance",
+            "insurance":   "Insurance",
+            "utility":     "Utilities",
+            "utilities":   "Utilities",
+            "legal":       "Legal and Professional Fees",
+            "advertising": "Advertising",
+        }
+        for kw, cat in category_map.items():
+            if kw in subject_lower:
+                category = cat
+                break
 
     # ── Print summary ─────────────────────────────────────────────────────────
     tag = "[DRY-RUN] " if dry_run else ""
     print(
         f"  {tag}→ {prop} | {vendor} | ${save_amount:.2f}"
+        + (" (50% utility)" if is_utility_50 and full_amount else "")
         + (" (80% of tools)" if is_tools and full_amount else "")
         + (" ⚠ NEEDS_REVIEW" if "NEEDS_REVIEW" in notes else "")
     )
