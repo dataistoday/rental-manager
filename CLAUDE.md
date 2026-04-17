@@ -191,6 +191,29 @@ Phone access (same WiFi): `http://YOUR_PC_IP:8501`
 - Default category: **Supplies**
 - Tools checkbox: saves 80% of receipt total; stamps full amount in Notes
 
+## Expense Category Quick Reference
+Common Schedule E category mappings for this portfolio:
+
+| Expense type | Schedule E Category | Notes |
+|---|---|---|
+| Eviction attorney, lease review | Legal and Professional Fees | Need paid invoice + fee agreement |
+| Avail subscription | Management Fees | Auto-split 4 ways via SPLIT_SENDERS |
+| Anthropic / AI tools for rental mgmt | Management Fees | Business-use % only; split across properties |
+| Pest control (Rowland etc.) | Cleaning and Maintenance | Auto 50% if Regal |
+| Duke Energy, Metro Net, WG Utilities | Utilities | Auto 50%, Regal |
+| Repair materials (Home Depot, Lowes) | Repairs | Add TOOLS to subject for 80% deduction |
+| Drive to property for repairs | Auto and Travel | Log via Mileage Tracker, not Expenses |
+
+### What's NOT Deductible
+- Solo meals while working on your own property (personal living expense)
+- Business meals without documented who/what (and only 50% when valid)
+- Personal portion of shared-use expenses (Anthropic, phone, internet)
+
+### Documentation Standard
+Every legal/professional fee row should have BOTH in Drive:
+- The engagement/fee agreement (establishes business purpose)
+- Proof of payment (bank stmt line, Zelle confirmation, paid receipt)
+
 ## Gmail Poller — Parsing Notes
 - Self-forwarded emails (from your own Gmail): vendor extracted from subject line, not From: header
 - Subject format for self-forwards: `[property code] [TOOLS] Vendor Name` e.g. `PH Home Depot`, `tools PH Harbor Freight`
