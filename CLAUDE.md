@@ -40,7 +40,6 @@ sheets/
   vendors.py            # Vendors tab
   tenants.py            # Tenants tab
   inspections.py        # Inspections tab
-  utilities.py          # Utilities tab
 drive/uploader.py       # upload_file(), upload_image(), upload_pdf(),
                         # upload_photo_for_property(), list_property_photos(),
                         # get_or_create_subfolder()
@@ -59,7 +58,6 @@ pages/
   07_tax_summary.py       # Schedule E dashboard by year & property, CSV export
   08_lease_renewals.py    # Lease expiration alerts, color-coded by urgency
   09_inspection_log.py    # Move-in/out, annual, ad-hoc inspections + photos
-  10_utility_tracker.py   # Utility bills by property, unpaid alerts, YTD totals
   11_property_photos.py   # Zillow/listing photos, auto-organized by property in Drive
 
 scripts/
@@ -69,15 +67,15 @@ scripts/
                           # Run: py scripts/gmail_poller.py [--dry-run] [--verbose] [--setup]
 ```
 
-## Google Sheets Schema (one spreadsheet, 8 tabs)
+## Google Sheets Schema (one spreadsheet, 7 tabs)
 - **Expenses:** timestamp, property, date, vendor, amount, category, description, receipt_url, payment_method, notes
+  (Utility bills are logged here with category=`Utilities` — no separate Utilities tab.)
 - **Mileage:** timestamp, date, property, purpose, start_odometer, end_odometer, miles, irs_rate, deduction_amount, notes, vehicle
 - **Maintenance:** id, timestamp, last_updated, property, issue_title, description, status, priority, contractor, estimated_cost, actual_cost, photo_urls, resolution_notes
 - **Insurance:** property, policy_number, insurer, agent_name, agent_phone, agent_email, premium_annual, renewal_date, coverage_type, doc_url, notes
 - **Vendors:** timestamp, company_name, contact_name, phone, email, trade, properties_served, hourly_rate, rating, notes, last_used_date
 - **Tenants:** timestamp, property, tenant_name, lease_start, lease_end, monthly_rent, security_deposit, entry_type, entry_date, subject, body, doc_url
 - **Inspections:** id, timestamp, property, inspection_type, inspection_date, inspector, condition_overall, notes, action_items, photo_urls
-- **Utilities:** timestamp, property, utility_type, provider, account_number, billing_period, amount, due_date, paid_date, notes
 
 ## Google Drive Folder Structure
 ```
@@ -92,7 +90,7 @@ Property Photos/        ← DRIVE_FOLDER_PHOTOS (parent folder)
 ```
 
 ## Key Design Rules
-- **`config.py` is the only place** to add properties, IRS categories, vendor trades, inspection types, utility types, or vehicles
+- **`config.py` is the only place** to add properties, IRS categories, vendor trades, inspection types, or vehicles
 - **Never hardcode property names** in page files — always import from `config.PROPERTIES`
 - **All writes** go through `sheets/client.py` (`append_row` / `update_row`) — never call gspread directly from pages
 - **All reads** go through `utils/cache.py` `safe_get_*()` functions for graceful degradation
@@ -130,14 +128,28 @@ Property Photos/        ← DRIVE_FOLDER_PHOTOS (parent folder)
 
 ### Winter Garden (Regal) utility senders — auto 50% rule
 Emails from (or forwarded with subject referencing) these vendors are forced to
-Winter Garden (Regal) + category=Utilities + 50% deduction (full amount stamped in Notes):
-| Sender/subject contains | Vendor saved | Covers |
+Winter Garden (Regal) + 50% deduction (full amount stamped in Notes). The Schedule E
+category is per-sender so each bill rolls up to the correct IRS line item:
+| Sender/subject contains | Vendor saved | Schedule E category |
 |---|---|---|
-| `duke-energy`, `duke energy` | Duke Energy | Electric |
-| `metronet`, `metro net` | Metro Net | Internet |
-| `cityofwintergarden`, `winter garden utilities`, `cwgdn` | Winter Garden Utilities | Water/sewer |
+| `duke-energy`, `duke energy` | Duke Energy | Utilities |
+| `metronet`, `metro net` | Metro Net | Utilities |
+| `cityofwintergarden`, `winter garden utilities`, `cwgdn` | Winter Garden Utilities | Utilities |
+| `rowland pest`, `rowlandpest` | Rowland Pest Control | Cleaning and Maintenance |
 
-Rule lives in `UTILITY_50_SENDERS` in `scripts/gmail_poller.py` — add new senders there.
+Rule lives in `UTILITY_50_SENDERS` in `scripts/gmail_poller.py` — values are
+`(vendor, category)` tuples. Add new senders there.
+
+### Portfolio-wide senders — auto-split across all properties
+Emails from these senders are split evenly across all `PROPERTIES` — one expense
+row per property at amount ÷ N. Good for rental-management software and other
+portfolio-level services:
+| Sender/subject contains | Vendor saved | Schedule E category |
+|---|---|---|
+| `avail.co`, `avail ` | Avail | Management Fees |
+
+Rule lives in `SPLIT_SENDERS` in `scripts/gmail_poller.py`. Full amount and
+per-property share are stamped in the Notes column on each row.
 
 ## Running Locally
 ```bash
@@ -159,7 +171,6 @@ Phone access (same WiFi): `http://YOUR_PC_IP:8501`
 - [x] 3 Drive folders shared with service account email
 - [x] `APP_PASSWORD` set
 - [x] Add `Inspections` tab to Google Sheet
-- [x] Add `Utilities` tab to Google Sheet
 - [x] Create "Property Photos" Drive folder → share with service account → add ID to `.env` as `DRIVE_FOLDER_PHOTOS`
 - [x] Gmail API enabled in Google Cloud Console
 - [x] OAuth 2.0 Desktop Client created → `gmail_oauth_client.json` in project root

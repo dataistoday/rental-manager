@@ -121,7 +121,6 @@ Use the **sidebar** (top-left ☰) to navigate between modules:
 | 🧾 Tax Summary | Schedule E deductions by year & property |
 | 📅 Lease Renewals | Expiration alerts · renewal tracking |
 | 🔍 Inspection Log | Move-in/out · annual inspections |
-| ⚡ Utility Tracker | Bills by property · unpaid alerts |
 | 📸 Property Photos | Zillow-ready listing photos by property |
 """
 )

@@ -16,7 +16,6 @@ SHEET_TABS = {
     "vendors":     "Vendors",
     "tenants":     "Tenants",
     "inspections": "Inspections",
-    "utilities":   "Utilities",
 }
 
 # IRS Schedule E categories — used on every expense entry
@@ -73,16 +72,6 @@ INSPECTION_TYPES = [
 ]
 
 INSPECTION_CONDITIONS = ["Excellent", "Good", "Fair", "Poor"]
-
-UTILITY_TYPES = [
-    "Electric",
-    "Water / Sewer",
-    "Gas",
-    "Trash / Recycling",
-    "Cable / Internet",
-    "HOA",
-    "Other",
-]
 
 ENTRY_TYPES = [
     "Note",

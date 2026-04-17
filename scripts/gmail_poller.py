@@ -165,17 +165,28 @@ DATE_PATTERNS = [
     (r"(\d{1,2}/\d{1,2}/\d{2})",                             "%m/%d/%y"),
 ]
 
-# Utility senders that always map to Winter Garden (Regal), category=Utilities, 50% deduction.
+# Recurring Winter Garden (Regal) senders: always map to Regal + 50% deduction.
 # Matched case-insensitively against the From: header AND subject line (handles forwards).
-# Key = substring to look for, value = canonical vendor name written to the sheet.
-UTILITY_50_SENDERS: dict[str, str] = {
-    "duke-energy":              "Duke Energy",
-    "duke energy":              "Duke Energy",
-    "metronet":                 "Metro Net",
-    "metro net":                "Metro Net",
-    "cityofwintergarden":       "Winter Garden Utilities",
-    "winter garden utilities":  "Winter Garden Utilities",
-    "cwgdn":                    "Winter Garden Utilities",
+# Key = substring to look for; value = (vendor name, Schedule E category).
+UTILITY_50_SENDERS: dict[str, tuple[str, str]] = {
+    "duke-energy":              ("Duke Energy",             "Utilities"),
+    "duke energy":              ("Duke Energy",             "Utilities"),
+    "metronet":                 ("Metro Net",               "Utilities"),
+    "metro net":                ("Metro Net",               "Utilities"),
+    "cityofwintergarden":       ("Winter Garden Utilities", "Utilities"),
+    "winter garden utilities":  ("Winter Garden Utilities", "Utilities"),
+    "cwgdn":                    ("Winter Garden Utilities", "Utilities"),
+    "rowland pest":             ("Rowland Pest Control",    "Cleaning and Maintenance"),
+    "rowlandpest":              ("Rowland Pest Control",    "Cleaning and Maintenance"),
+}
+
+# Senders whose charge should be split evenly across ALL properties (portfolio-wide
+# services like rental management software). Writes one expense row per property,
+# each at amount/len(PROPERTIES). Matched against From: header AND subject line.
+# Key = substring; value = (vendor, Schedule E category).
+SPLIT_SENDERS: dict[str, tuple[str, str]] = {
+    "avail.co":  ("Avail", "Management Fees"),
+    "avail ":    ("Avail", "Management Fees"),
 }
 
 
@@ -316,16 +327,28 @@ def is_tools_purchase(subject: str) -> bool:
     return "tools" in subject.lower() or "tool" in subject.lower()
 
 
-def match_utility_sender(sender: str, subject: str) -> str | None:
+def match_utility_sender(sender: str, subject: str) -> tuple[str, str] | None:
     """
-    Return the canonical vendor name if this email comes from (or references)
-    one of the Winter Garden (Regal) utility providers. Returns None otherwise.
-    Matches sender AND subject so forwarded utility bills still trigger the rule.
+    Return (vendor_name, schedule_e_category) if this email is from one of the
+    recurring Winter Garden (Regal) senders subject to the 50% deduction rule.
+    Matches sender AND subject so forwarded bills still trigger the rule.
     """
     haystack = f"{sender} {subject}".lower()
-    for keyword, vendor in UTILITY_50_SENDERS.items():
+    for keyword, (vendor, category) in UTILITY_50_SENDERS.items():
         if keyword in haystack:
-            return vendor
+            return vendor, category
+    return None
+
+
+def match_split_sender(sender: str, subject: str) -> tuple[str, str] | None:
+    """
+    Return (vendor_name, schedule_e_category) if this email is from a sender
+    whose charge should be split evenly across ALL properties.
+    """
+    haystack = f"{sender} {subject}".lower()
+    for keyword, (vendor, category) in SPLIT_SENDERS.items():
+        if keyword in haystack:
+            return vendor, category
     return None
 
 
@@ -573,8 +596,14 @@ def process_message(
     # ── Determine property and flags from subject ────────────────────────────
     prop_from_subject = parse_property_from_subject(subject)
     is_tools          = is_tools_purchase(subject)
-    utility_vendor    = match_utility_sender(sender, subject)
-    is_utility_50     = utility_vendor is not None
+    utility_match     = match_utility_sender(sender, subject)
+    is_utility_50     = utility_match is not None
+    utility_vendor    = utility_match[0] if utility_match else None
+    utility_category  = utility_match[1] if utility_match else None
+    split_match       = match_split_sender(sender, subject)
+    is_split          = split_match is not None
+    split_vendor      = split_match[0] if split_match else None
+    split_category    = split_match[1] if split_match else None
 
     # ── Try OCR on attachments first ─────────────────────────────────────────
     attachments = extract_attachments(service, message)
@@ -648,9 +677,12 @@ def process_message(
         save_amount = 0.0
     notes = " | ".join(notes_parts)
 
-    # ── Determine category (utility sender forces Utilities, else keyword map) ─
-    if is_utility_50:
-        category = "Utilities"
+    # ── Determine category (split/utility senders force their mapped category, else keyword map) ─
+    if is_split:
+        category = split_category
+        vendor = split_vendor
+    elif is_utility_50:
+        category = utility_category
     else:
         category = DEFAULT_CATEGORY
         subject_lower = subject.lower()
@@ -670,26 +702,41 @@ def process_message(
                 category = cat
                 break
 
-    # ── Print summary ─────────────────────────────────────────────────────────
+    # ── Write to Sheets (split sender → one row per property; else single row) ─
     tag = "[DRY-RUN] " if dry_run else ""
-    print(
-        f"  {tag}→ {prop} | {vendor} | ${save_amount:.2f}"
-        + (" (50% utility)" if is_utility_50 and full_amount else "")
-        + (" (80% of tools)" if is_tools and full_amount else "")
-        + (" ⚠ NEEDS_REVIEW" if "NEEDS_REVIEW" in notes else "")
-    )
-
-    # ── Write to Sheets ───────────────────────────────────────────────────────
-    write_expense_row(
-        property_name=prop,
-        date=date,
-        vendor=vendor,
-        amount=save_amount if save_amount else 0.0,
-        category=category,
-        description=description,
-        notes=notes,
-        dry_run=dry_run,
-    )
+    if is_split and save_amount:
+        n = len(PROPERTIES)
+        per_prop = round(save_amount / n, 2)
+        split_notes = notes + f" | Split evenly across {n} properties: full bill ${save_amount:.2f}, ${per_prop:.2f} each"
+        print(f"  {tag}→ SPLIT | {vendor} | ${save_amount:.2f} → ${per_prop:.2f} × {n} properties")
+        for p in PROPERTIES:
+            write_expense_row(
+                property_name=p,
+                date=date,
+                vendor=vendor,
+                amount=per_prop,
+                category=category,
+                description=description,
+                notes=split_notes,
+                dry_run=dry_run,
+            )
+    else:
+        print(
+            f"  {tag}→ {prop} | {vendor} | ${save_amount:.2f}"
+            + (" (50% utility)" if is_utility_50 and full_amount else "")
+            + (" (80% of tools)" if is_tools and full_amount else "")
+            + (" ⚠ NEEDS_REVIEW" if "NEEDS_REVIEW" in notes else "")
+        )
+        write_expense_row(
+            property_name=prop,
+            date=date,
+            vendor=vendor,
+            amount=save_amount if save_amount else 0.0,
+            category=category,
+            description=description,
+            notes=notes,
+            dry_run=dry_run,
+        )
 
     # ── Move email to done ────────────────────────────────────────────────────
     move_to_done(service, msg_id, label_inbox_id, label_done_id, dry_run)
