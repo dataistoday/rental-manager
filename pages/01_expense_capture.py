@@ -1,82 +1,31 @@
 """
 pages/01_expense_capture.py — Expense Capture
 
-Most powerful page: use your phone camera or upload a receipt image,
-OCR extracts vendor/date/amount, pre-fills the form, and saves to the
-Expenses tab with an IRS Schedule E category.
+Manual expense entry form. Saves to the Expenses tab with an IRS Schedule E category.
+Use scripts/gmail_poller.py to import receipts automatically.
 """
 
 import datetime
 import streamlit as st
+from utils.auth_gate import require_auth
 import pandas as pd
 
 from sheets.expenses import add_expense
 from utils.cache import safe_get_expenses, show_fetch_error
 from utils.formatting import format_currency, format_date
 from drive.uploader import upload_image
-from ocr.receipt_parser import parse_receipt, OCR_AVAILABLE
-from config import PROPERTIES, IRS_SCHEDULE_E_CATEGORIES, PAYMENT_METHODS
+from config import PROPERTIES, IRS_SCHEDULE_E_CATEGORIES, PAYMENT_METHODS, CAPITAL_IMPROVEMENT_CATEGORY
+
+require_auth()
 
 st.set_page_config(page_title="Expense Capture", page_icon="💸", layout="centered")
 st.title("💸 Expense Capture")
-st.caption("Scan a receipt → auto-fill → save to Schedule E ledger.")
+st.caption("Log an expense to your Schedule E ledger.")
 
 # ---------------------------------------------------------------------------
-# Receipt scanner
-# ---------------------------------------------------------------------------
-st.subheader("Scan Receipt (Optional)")
-
-ocr_result = {}
-
-if not OCR_AVAILABLE:
-    st.info(
-        "Receipt scanning is not configured — fill in the form manually below.  \n"
-        "Add your Veryfi credentials to `.env` to enable OCR.",
-        icon="ℹ️",
-    )
-else:
-    scan_tab, upload_tab = st.tabs(["📷 Camera", "📁 Upload File"])
-    image_bytes = None
-    receipt_file_name = "receipt.jpg"
-
-    with scan_tab:
-        camera_image = st.camera_input("Point camera at receipt")
-        if camera_image:
-            image_bytes = camera_image.getvalue()
-
-    with upload_tab:
-        uploaded = st.file_uploader("Upload receipt image or PDF", type=["jpg", "jpeg", "png", "pdf"])
-        if uploaded:
-            image_bytes = uploaded.read()
-            receipt_file_name = uploaded.name
-
-    if image_bytes:
-        with st.spinner("Reading receipt…"):
-            ocr_result = parse_receipt(image_bytes, file_name=receipt_file_name)
-
-        if ocr_result.get("amount"):
-            st.success(
-                f"Extracted: **{ocr_result.get('vendor', '?')}** · "
-                f"**{format_date(ocr_result.get('date'))}** · "
-                f"**{format_currency(ocr_result.get('amount'))}**"
-            )
-        else:
-            st.warning("OCR couldn't extract a total — check the fields below.", icon="⚠️")
-
-st.markdown("---")
-
-# ---------------------------------------------------------------------------
-# Expense form — pre-filled from OCR where available
+# Expense form
 # ---------------------------------------------------------------------------
 st.subheader("Expense Details")
-
-# Helper: show ⚠️ label when OCR wasn't confident
-def field_label(label: str, key: str) -> str:
-    conf = ocr_result.get("confidence", {})
-    if ocr_result and not conf.get(key, True):
-        return f"{label} ⚠️"
-    return label
-
 
 _palm_harbor_idx = PROPERTIES.index("Palm Harbor") if "Palm Harbor" in PROPERTIES else 0
 _supplies_idx = IRS_SCHEDULE_E_CATEGORIES.index("Supplies") if "Supplies" in IRS_SCHEDULE_E_CATEGORIES else 0
@@ -86,28 +35,18 @@ with st.form("expense_form", clear_on_submit=True):
 
     col1, col2 = st.columns(2)
     with col1:
-        expense_date = st.date_input(
-            field_label("Date *", "date"),
-            value=ocr_result.get("date") or datetime.date.today(),
-        )
+        expense_date = st.date_input("Date *", value=datetime.date.today())
     with col2:
         category = st.selectbox("Category (Schedule E) *", IRS_SCHEDULE_E_CATEGORIES, index=_supplies_idx)
 
     vendor = st.text_input(
-        field_label("Vendor / Payee *", "vendor"),
-        value=ocr_result.get("vendor") or "",
+        "Vendor / Payee *",
         placeholder="Home Depot, Joe's Plumbing…",
     )
 
     col3, col4 = st.columns(2)
     with col3:
-        amount = st.number_input(
-            field_label("Amount ($) *", "amount"),
-            min_value=0.0,
-            step=0.01,
-            format="%.2f",
-            value=float(ocr_result.get("amount") or 0.0),
-        )
+        amount = st.number_input("Amount ($) *", min_value=0.0, step=0.01, format="%.2f")
     with col4:
         payment_method = st.selectbox("Payment Method", [""] + PAYMENT_METHODS)
 
@@ -117,6 +56,20 @@ with st.form("expense_form", clear_on_submit=True):
     )
     if is_tools and amount > 0:
         st.info(f"Deductible amount: **{format_currency(amount * 0.80)}** (80% of {format_currency(amount)})")
+
+    is_capital_improvement = st.checkbox(
+        "Capital improvement (depreciate, don't expense)",
+        help="Check for things like new roof, HVAC, water heater, kitchen remodel, additions. "
+             "These are capitalized and depreciated over 27.5 years — they do NOT go on Schedule E "
+             "as a current-year expense. Row will be tagged for your CPA's depreciation schedule.",
+    )
+    if is_capital_improvement:
+        st.warning(
+            f"This row will be saved under category **{CAPITAL_IMPROVEMENT_CATEGORY}** "
+            "(not Schedule E). It'll be excluded from current-year expense totals and surfaced "
+            "in the year-end depreciation list for your CPA.",
+            icon="🏗️",
+        )
 
     description = st.text_input("Description", placeholder="Brief description of what was purchased")
     notes = st.text_input("Notes (optional)")
@@ -143,7 +96,9 @@ with st.form("expense_form", clear_on_submit=True):
             try:
                 save_amount = round(amount * 0.80, 2) if is_tools else amount
                 tools_note = f"Tools (full receipt: {format_currency(amount)}, 80% deducted)" if is_tools else ""
-                final_notes = "\n".join(filter(None, [tools_note, notes.strip()]))
+                cap_note = "CAPITAL IMPROVEMENT — for depreciation schedule (Form 4562)" if is_capital_improvement else ""
+                final_notes = "\n".join(filter(None, [cap_note, tools_note, notes.strip()]))
+                save_category = CAPITAL_IMPROVEMENT_CATEGORY if is_capital_improvement else category
 
                 receipt_url = ""
                 if receipt_file:
@@ -157,15 +112,16 @@ with st.form("expense_form", clear_on_submit=True):
                     date=expense_date,
                     vendor=vendor.strip(),
                     amount=save_amount,
-                    category=category,
+                    category=save_category,
                     description=description.strip(),
                     receipt_url=receipt_url,
                     payment_method=payment_method,
                     notes=final_notes,
                 )
                 st.success(
-                    f"Saved! {format_currency(save_amount)} · {category} · {prop}"
+                    f"Saved! {format_currency(save_amount)} · {save_category} · {prop}"
                     + (" (80% of tools receipt)" if is_tools else "")
+                    + (" — flagged for depreciation" if is_capital_improvement else "")
                 )
             except Exception as e:
                 st.error(f"Failed to save: {e}")

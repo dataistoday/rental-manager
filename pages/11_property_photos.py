@@ -7,9 +7,12 @@ Each property gets its own subfolder in Google Drive (auto-created on first uplo
 
 import datetime
 import streamlit as st
+from utils.auth_gate import require_auth
 
 from drive.uploader import upload_photo_for_property, list_property_photos
 from config import PROPERTIES
+
+require_auth()
 
 st.set_page_config(page_title="Property Photos", page_icon="📸", layout="centered")
 st.title("📸 Property Photos")
@@ -75,8 +78,17 @@ if not photos:
     st.info("No photos uploaded yet for this property.", icon="ℹ️")
 else:
     st.caption(f"{len(photos)} photo(s) in Drive")
-    for photo in photos:
-        st.markdown(f"- [{photo['name']}]({photo['url']})")
+    cols = st.columns(3)
+    for i, photo in enumerate(photos):
+        thumb_url = f"https://lh3.googleusercontent.com/d/{photo['id']}"
+        with cols[i % 3]:
+            st.markdown(
+                f'<a href="{photo["url"]}" target="_blank">'
+                f'<img src="{thumb_url}" style="width:100%;border-radius:6px;margin-bottom:6px;">'
+                f'</a>',
+                unsafe_allow_html=True,
+            )
+            st.caption(photo["name"])
 
 st.markdown("---")
 st.caption(

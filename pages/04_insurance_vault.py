@@ -6,9 +6,12 @@ Populated manually in Google Sheets; read from the app.
 """
 
 import streamlit as st
+from utils.auth_gate import require_auth
 from utils.cache import safe_get_insurance, show_fetch_error
 from utils.formatting import format_currency, format_date, format_phone
 from config import PROPERTIES
+
+require_auth()
 
 st.set_page_config(page_title="Insurance Vault", page_icon="🛡️", layout="centered")
 st.title("🛡️ Insurance Vault")

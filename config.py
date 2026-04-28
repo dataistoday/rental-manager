@@ -16,6 +16,9 @@ SHEET_TABS = {
     "vendors":     "Vendors",
     "tenants":     "Tenants",
     "inspections": "Inspections",
+    "showings":    "Showings",
+    "rent_income": "Rent Income",
+    "vehicle_snapshots": "Vehicle Snapshots",
 }
 
 # IRS Schedule E categories — used on every expense entry
@@ -36,6 +39,13 @@ IRS_SCHEDULE_E_CATEGORIES = [
     "Depreciation",
     "Other",
 ]
+
+# Sentinel category for capital improvements — NOT a Schedule E line.
+# Capital improvements (new roof, HVAC, water heater, kitchen remodel, etc.)
+# are depreciated over 27.5 years on Form 4562, not deducted as a current expense.
+# Keeping this OUT of IRS_SCHEDULE_E_CATEGORIES means tax summary totals stay clean
+# and these rows surface in a separate "For Depreciation Schedule" section.
+CAPITAL_IMPROVEMENT_CATEGORY = "Capital Improvement"
 
 # IRS standard mileage rate — update each January
 IRS_MILEAGE_RATE_2024 = 0.67

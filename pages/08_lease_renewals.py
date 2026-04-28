@@ -8,10 +8,13 @@ Shows a color-coded alert for each property based on days remaining.
 import datetime
 import pandas as pd
 import streamlit as st
+from utils.auth_gate import require_auth
 
 from utils.cache import safe_get_tenants, show_fetch_error
 from utils.formatting import format_date, format_currency
 from config import PROPERTIES
+
+require_auth()
 
 st.set_page_config(page_title="Lease Renewals", page_icon="📅", layout="centered")
 st.title("📅 Lease Renewals")

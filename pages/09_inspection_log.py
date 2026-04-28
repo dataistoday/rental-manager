@@ -7,6 +7,7 @@ Records condition, notes, action items, and photos to Drive.
 
 import datetime
 import streamlit as st
+from utils.auth_gate import require_auth
 import pandas as pd
 
 from sheets.inspections import add_inspection, get_inspections
@@ -14,6 +15,8 @@ from utils.cache import safe_get_inspections, show_fetch_error
 from utils.formatting import format_date
 from drive.uploader import upload_image
 from config import PROPERTIES, INSPECTION_TYPES, INSPECTION_CONDITIONS
+
+require_auth()
 
 st.set_page_config(page_title="Inspection Log", page_icon="🔍", layout="centered")
 st.title("🔍 Inspection Log")

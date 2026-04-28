@@ -7,12 +7,15 @@ automatically. All trips are stored in the Mileage tab for Schedule E / tax prep
 
 import datetime
 import streamlit as st
+from utils.auth_gate import require_auth
 import pandas as pd
 
 from sheets.mileage import add_mileage
 from utils.cache import safe_get_mileage, show_fetch_error
 from utils.formatting import format_currency, format_miles, format_date
 from config import PROPERTIES, MILEAGE_PURPOSES, VEHICLES, IRS_MILEAGE_RATE_CURRENT
+
+require_auth()
 
 st.set_page_config(page_title="Mileage Tracker", page_icon="🚗", layout="centered")
 st.title("🚗 Mileage Tracker")
@@ -22,6 +25,14 @@ st.caption(f"IRS rate: ${IRS_MILEAGE_RATE_CURRENT}/mile (2026)")
 # Log Trip form
 # ---------------------------------------------------------------------------
 st.subheader("Log a Trip")
+
+entry_mode = st.radio(
+    "Entry mode",
+    options=["Odometer", "Miles only"],
+    horizontal=True,
+    help="Odometer is most accurate. 'Miles only' is for backfilling trips "
+         "where you didn't capture the odometer reading.",
+)
 
 with st.form("mileage_form", clear_on_submit=True):
     prop = st.selectbox(
@@ -33,29 +44,45 @@ with st.form("mileage_form", clear_on_submit=True):
     purpose = st.selectbox("Purpose *", MILEAGE_PURPOSES)
     trip_date = st.date_input("Date", value=datetime.date.today())
 
-    col1, col2 = st.columns(2)
-    with col1:
-        start_odo = st.number_input(
-            "Start Odometer (miles)", min_value=0.0, step=0.1, format="%.1f"
-        )
-    with col2:
-        end_odo = st.number_input(
-            "End Odometer (miles)", min_value=0.0, step=0.1, format="%.1f"
-        )
+    start_odo = 0.0
+    end_odo = 0.0
+    miles_direct = 0.0
 
-    # Live preview
-    if end_odo > start_odo:
-        miles = round(end_odo - start_odo, 1)
-        deduction = round(miles * IRS_MILEAGE_RATE_CURRENT, 2)
-        st.info(f"**{miles} miles** → **{format_currency(deduction)} deduction**")
+    if entry_mode == "Odometer":
+        col1, col2 = st.columns(2)
+        with col1:
+            start_odo = st.number_input(
+                "Start Odometer (miles)", min_value=0.0, step=0.1, format="%.1f"
+            )
+        with col2:
+            end_odo = st.number_input(
+                "End Odometer (miles)", min_value=0.0, step=0.1, format="%.1f"
+            )
+        if end_odo > start_odo:
+            preview_miles = round(end_odo - start_odo, 1)
+            preview_ded = round(preview_miles * IRS_MILEAGE_RATE_CURRENT, 2)
+            st.info(f"**{preview_miles} miles** → **{format_currency(preview_ded)} deduction**")
+    else:
+        miles_direct = st.number_input(
+            "Miles *",
+            min_value=0.0, step=0.1, format="%.1f",
+            help="Enter the trip distance directly. Odometer columns will be left blank.",
+        )
+        if miles_direct > 0:
+            preview_ded = round(miles_direct * IRS_MILEAGE_RATE_CURRENT, 2)
+            st.info(f"**{miles_direct} miles** → **{format_currency(preview_ded)} deduction**")
 
     notes = st.text_input("Notes (optional)", placeholder="e.g. Picked up supplies at Home Depot")
 
     submitted = st.form_submit_button("Save Trip", use_container_width=True)
     if submitted:
         errors = []
-        if end_odo <= start_odo:
-            errors.append("End odometer must be greater than start odometer.")
+        if entry_mode == "Odometer":
+            if end_odo <= start_odo:
+                errors.append("End odometer must be greater than start odometer.")
+        else:
+            if miles_direct <= 0:
+                errors.append("Miles must be greater than 0.")
         if errors:
             for e in errors:
                 st.error(e)
@@ -67,12 +94,14 @@ with st.form("mileage_form", clear_on_submit=True):
                     purpose=purpose,
                     start_odometer=start_odo,
                     end_odometer=end_odo,
+                    miles=miles_direct,
                     notes=notes.strip(),
                     vehicle=vehicle,
                 )
+                final_miles = round(end_odo - start_odo, 1) if entry_mode == "Odometer" else round(miles_direct, 1)
                 st.success(
-                    f"Trip saved! {round(end_odo - start_odo, 1)} miles → "
-                    f"{format_currency(round((end_odo - start_odo) * IRS_MILEAGE_RATE_CURRENT, 2))} deduction"
+                    f"Trip saved! {final_miles} miles → "
+                    f"{format_currency(round(final_miles * IRS_MILEAGE_RATE_CURRENT, 2))} deduction"
                 )
             except Exception as e:
                 st.error(f"Failed to save: {e}")

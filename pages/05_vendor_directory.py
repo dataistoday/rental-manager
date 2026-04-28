@@ -6,10 +6,13 @@ Add new vendors via the form at the bottom.
 """
 
 import streamlit as st
+from utils.auth_gate import require_auth
 from utils.cache import safe_get_vendors, show_fetch_error
 from utils.formatting import format_phone
 from sheets.vendors import add_vendor
 from config import PROPERTIES, VENDOR_TRADES
+
+require_auth()
 
 st.set_page_config(page_title="Vendor Directory", page_icon="📋", layout="centered")
 st.title("📋 Vendor Directory")

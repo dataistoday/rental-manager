@@ -7,11 +7,14 @@ lease details, and payment records. Critical for eviction protection.
 
 import datetime
 import streamlit as st
+from utils.auth_gate import require_auth
 
 from sheets.tenants import add_tenant_log
 from utils.cache import safe_get_tenants, show_fetch_error
 from utils.formatting import format_currency, format_date
 from config import PROPERTIES, ENTRY_TYPES
+
+require_auth()
 
 st.set_page_config(page_title="Tenant Log", page_icon="👤", layout="centered")
 st.title("👤 Tenant Log")

@@ -18,7 +18,7 @@ def format_phone(phone: str) -> str:
     digits = re.sub(r"\D", "", str(phone or ""))
     if len(digits) == 10:
         return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
-    return phone or ""
+    return str(phone) if phone else ""
 
 
 def format_date(value) -> str:

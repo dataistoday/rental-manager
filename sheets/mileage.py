@@ -26,23 +26,36 @@ def add_mileage(
     date: datetime.date,
     property_name: str,
     purpose: str,
-    start_odometer: float,
-    end_odometer: float,
+    start_odometer: float = 0.0,
+    end_odometer: float = 0.0,
+    miles: float = 0.0,
     notes: str = "",
     irs_rate: float = IRS_MILEAGE_RATE_CURRENT,
     vehicle: str = "",
 ) -> None:
-    """Append one mileage row. Calculates miles and deduction automatically."""
-    miles = round(end_odometer - start_odometer, 1)
-    deduction = round(miles * irs_rate, 2)
+    """Append one mileage row.
+
+    Accepts either start+end odometer (preferred — derives miles) or a direct
+    miles value (for backfilled trips where odometer wasn't captured).
+    """
+    if start_odometer and end_odometer and end_odometer > start_odometer:
+        final_miles = round(end_odometer - start_odometer, 1)
+        start_val = round(start_odometer, 1)
+        end_val = round(end_odometer, 1)
+    else:
+        final_miles = round(miles, 1)
+        start_val = ""
+        end_val = ""
+
+    deduction = round(final_miles * irs_rate, 2)
     row = [
         datetime.datetime.now().isoformat(timespec="seconds"),
         date.isoformat(),
         property_name,
         purpose,
-        round(start_odometer, 1),
-        round(end_odometer, 1),
-        miles,
+        start_val,
+        end_val,
+        final_miles,
         irs_rate,
         deduction,
         notes,

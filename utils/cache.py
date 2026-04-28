@@ -24,6 +24,9 @@ import sheets.insurance as _ins
 import sheets.vendors as _ven
 import sheets.tenants as _ten
 import sheets.inspections as _insp
+import sheets.showings as _show
+import sheets.rent_income as _rent
+import sheets.vehicle_snapshots as _veh
 
 # Module-level cache survives across Streamlit reruns within the same session
 _last_known: dict[str, pd.DataFrame] = {}
@@ -65,6 +68,18 @@ def safe_get_tenants():
 
 def safe_get_inspections():
     return _safe_fetch("inspections", _insp.get_inspections)
+
+
+def safe_get_showings():
+    return _safe_fetch("showings", _show.get_showings)
+
+
+def safe_get_rent_income():
+    return _safe_fetch("rent_income", _rent.get_rent_income)
+
+
+def safe_get_vehicle_snapshots():
+    return _safe_fetch("vehicle_snapshots", _veh.get_vehicle_snapshots)
 
 
 def show_fetch_error(err: str | None) -> None:

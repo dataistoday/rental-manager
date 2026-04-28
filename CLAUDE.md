@@ -12,7 +12,7 @@ Florida rental portfolio management app. Mobile-first Streamlit app backed by Go
 - **Frontend:** Streamlit (Python) — `streamlit run app.py`
 - **Database:** Google Sheets via `gspread`
 - **File Storage:** Google Drive via `google-api-python-client`
-- **OCR:** Veryfi API (~$0.08/receipt, pay-per-use) — sign up at veryfi.com, add 3 keys to `.env`
+- **OCR:** Veryfi API — used only by `gmail_poller.py` (not the app UI)
 - **Deployment:** Local-first; cloud-ready for Streamlit Community Cloud
 
 ## Property Addresses
@@ -35,7 +35,7 @@ sheets/
   client.py             # get_worksheet(), append_row(), update_row() — all writes go here
   expenses.py           # Expenses tab
   mileage.py            # Mileage tab
-  maintenance.py        # Maintenance tab (has update_maintenance_status for in-place edits)
+  maintenance.py        # Maintenance tab (data only — no UI page)
   insurance.py          # Insurance tab (read-only)
   vendors.py            # Vendors tab
   tenants.py            # Tenants tab
@@ -46,19 +46,26 @@ drive/uploader.py       # upload_file(), upload_image(), upload_pdf(),
 ocr/receipt_parser.py   # parse_receipt(bytes, file_name) → {vendor, date, amount, confidence}
 utils/formatting.py     # format_currency(), format_phone(), status_badge(), etc.
 utils/cache.py          # safe_get_*() wrappers — graceful degradation on Sheets failure
+utils/auth_gate.py      # require_auth() — call at top of every page to enforce password gate
 
 pages/
-  01_expense_capture.py   # Camera/upload (jpg/png/pdf) → OCR → IRS Schedule E form
+  01_expense_capture.py   # Manual expense entry → IRS Schedule E form
                           # Defaults: Palm Harbor, Supplies; Tools checkbox applies 80% deduction
+                          # Optional receipt image upload to Drive vault
   02_mileage_tracker.py   # Odometer → miles + deduction at IRS rate; vehicle dropdown; defaults to Tampa
-  03_maintenance_log.py   # Issue log, status updates, photo uploads to Drive
   04_insurance_vault.py   # Read-only policy cards (populated manually in Sheets)
   05_vendor_directory.py  # Filterable contractor list
   06_tenant_log.py        # Chronological tenant interaction log
   07_tax_summary.py       # Schedule E dashboard by year & property, CSV export
   08_lease_renewals.py    # Lease expiration alerts, color-coded by urgency
   09_inspection_log.py    # Move-in/out, annual, ad-hoc inspections + photos
-  11_property_photos.py   # Zillow/listing photos, auto-organized by property in Drive
+  10_showings.py          # Prospective tenant showings — name, property, date/time, source, notes
+                          # Property dropdown defaults to "All"
+  11_property_photos.py   # Zillow/listing photos
+  12_rent_income.py       # Rent payments — feeds Schedule E line 3 (Rents received)
+                          # Auto-suggests latest tenant per property; tracks late fees separately
+  13_vehicle_snapshots.py # Per-vehicle, per-year Jan 1 / Dec 31 odometer — Form 4562 Part V
+                          # Cross-references Mileage tab to compute business-use %, 3-column thumbnail grid, auto-organized by property in Drive
 
 scripts/
   gmail_poller.py         # Standalone Gmail receipt importer (run on demand or via Task Scheduler)
@@ -76,6 +83,9 @@ scripts/
 - **Vendors:** timestamp, company_name, contact_name, phone, email, trade, properties_served, hourly_rate, rating, notes, last_used_date
 - **Tenants:** timestamp, property, tenant_name, lease_start, lease_end, monthly_rent, security_deposit, entry_type, entry_date, subject, body, doc_url
 - **Inspections:** id, timestamp, property, inspection_type, inspection_date, inspector, condition_overall, notes, action_items, photo_urls
+- **Showings:** timestamp, property, name, location_found, date, time, notes
+- **Rent Income:** timestamp, property, tenant_name, date_received, amount, late_fee, period_start, period_end, payment_method, notes
+- **Vehicle Snapshots:** timestamp, tax_year, vehicle, jan_1_odometer, dec_31_odometer, placed_in_service_date, has_other_personal_vehicle, notes
 
 ## Google Drive Folder Structure
 ```
@@ -98,6 +108,7 @@ Property Photos/        ← DRIVE_FOLDER_PHOTOS (parent folder)
 - **Dual-mode secrets:** `auth/google_auth.py` tries `st.secrets` first (cloud), then `credentials.json` (local)
 - **Drive subfolders** for property photos are created automatically via `get_or_create_subfolder()` — no manual folder setup needed beyond the parent
 - **gmail_poller.py is standalone** — it does NOT import from `sheets/client.py` or `auth/google_auth.py` (both have Streamlit dependencies). It writes to Sheets directly via gspread with the service account.
+- **Password gate:** every page must call `require_auth()` from `utils/auth_gate.py` as its first statement after imports — `app.py` alone is not enough to block direct URL navigation
 
 ## Gmail Poller — How It Works
 - Watches Gmail label `rental-receipts` (configurable in `.env` as `GMAIL_LABEL_NAME`)
@@ -186,10 +197,28 @@ Phone access (same WiFi): `http://YOUR_PC_IP:8501`
 - [x] Secrets configured in Streamlit Cloud dashboard (service account, Drive folder IDs, Veryfi keys, APP_PASSWORD)
 - [x] App live and credentials verified working
 
-## Expense Capture Defaults (as of 2026-04-16)
+## Expense Capture Defaults
 - Default property: **Palm Harbor**
 - Default category: **Supplies**
 - Tools checkbox: saves 80% of receipt total; stamps full amount in Notes
+- No camera or OCR in the UI — enter manually or run `scripts/gmail_poller.py`
+
+## Capital Improvements vs. Repairs
+Expense Capture has a **"Capital improvement"** checkbox. When checked, the row's
+category is saved as `Capital Improvement` (NOT a Schedule E category) so it stays
+out of current-year expense totals. These items get depreciated over 27.5 years on
+Form 4562 by your CPA — Tax Summary surfaces them in their own section.
+
+| Repair (deduct now, line 14) | Capital Improvement (depreciate, Form 4562) |
+|---|---|
+| Patch drywall | Full kitchen remodel |
+| Fix leaky pipe | New water heater |
+| Repaint a room | New roof |
+| Replace a doorknob | HVAC replacement |
+| Service the AC | Adding a deck or addition |
+
+Rule of thumb: **routine fix that restores condition = repair; betterment, restoration,
+or new component with multi-year life = improvement.**
 
 ## Expense Category Quick Reference
 Common Schedule E category mappings for this portfolio:

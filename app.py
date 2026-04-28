@@ -113,14 +113,16 @@ Use the **sidebar** (top-left ☰) to navigate between modules:
 | Module | Purpose |
 |---|---|
 | 💸 Expense Capture | Scan receipts · log costs to Schedule E |
+| 💰 Rent Income | Log rent payments · Schedule E line 3 |
 | 🚗 Mileage Tracker | Log trips · track IRS deductions |
-| 🔧 Maintenance Log | Track repairs · manage contractors |
+| 🚙 Vehicle Snapshots | Year-end odometers · Form 4562 Part V business-use % |
 | 🛡️ Insurance Vault | Policy numbers · agent contacts |
 | 📋 Vendor Directory | Preferred contractors by trade |
 | 👤 Tenant Log | Interaction history · lease records |
 | 🧾 Tax Summary | Schedule E deductions by year & property |
 | 📅 Lease Renewals | Expiration alerts · renewal tracking |
 | 🔍 Inspection Log | Move-in/out · annual inspections |
+| 🏡 Showings | Log prospective tenant showings |
 | 📸 Property Photos | Zillow-ready listing photos by property |
 """
 )
