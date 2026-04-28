@@ -16,6 +16,7 @@ from utils.auth_gate import require_auth
 
 from utils.cache import safe_get_expenses, safe_get_mileage, safe_get_rent_income, show_fetch_error
 from utils.formatting import format_currency
+from utils.date_normalize import normalize_date_column
 from config import PROPERTIES, IRS_SCHEDULE_E_CATEGORIES, CAPITAL_IMPROVEMENT_CATEGORY
 
 require_auth()
@@ -82,11 +83,9 @@ capital_improvements: list[dict] = []
 capital_total = 0.0
 
 if exp_df is not None and not exp_df.empty:
-    df = exp_df.copy()
+    # default_year=year ensures undated backfill rows land in the year being viewed
+    df = normalize_date_column(exp_df, "date", "timestamp", default_year=year)
     df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0)
-
-    # Normalize date column
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df = df[df["date"].dt.year == year]
 
     if property_filter != "All Properties":
@@ -126,10 +125,9 @@ mileage_deduction = 0.0
 mil_by_prop: dict[str, float] = {p: 0.0 for p in PROPERTIES}
 
 if mil_df is not None and not mil_df.empty:
-    mdf = mil_df.copy()
+    mdf = normalize_date_column(mil_df, "date", "timestamp", default_year=year)
     mdf["deduction_amount"] = pd.to_numeric(mdf["deduction_amount"], errors="coerce").fillna(0)
     mdf["miles"] = pd.to_numeric(mdf["miles"], errors="coerce").fillna(0)
-    mdf["date"] = pd.to_datetime(mdf["date"], errors="coerce")
     mdf = mdf[mdf["date"].dt.year == year]
 
     if property_filter != "All Properties":
