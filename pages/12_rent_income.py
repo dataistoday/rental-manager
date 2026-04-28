@@ -8,10 +8,13 @@ import datetime
 import pandas as pd
 import streamlit as st
 
+from utils.auth_gate import require_auth
 from utils.cache import safe_get_rent_income, safe_get_tenants, show_fetch_error
 from utils.formatting import format_currency
 from sheets.rent_income import add_rent_payment
 from config import PROPERTIES, PAYMENT_METHODS
+
+require_auth()
 
 st.set_page_config(page_title="Rent Income", page_icon="💰", layout="centered")
 st.title("💰 Rent Income")

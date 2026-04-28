@@ -6,9 +6,12 @@ Log prospective tenant showings by property.
 
 import datetime
 import streamlit as st
+from utils.auth_gate import require_auth
 from utils.cache import safe_get_showings, show_fetch_error
 from sheets.showings import add_showing
 from config import PROPERTIES
+
+require_auth()
 
 st.set_page_config(page_title="Showings", page_icon="🏡", layout="centered")
 st.title("🏡 Showings")

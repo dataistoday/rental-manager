@@ -10,9 +10,12 @@ import datetime
 import pandas as pd
 import streamlit as st
 
+from utils.auth_gate import require_auth
 from utils.cache import safe_get_vehicle_snapshots, safe_get_mileage, show_fetch_error
 from sheets.vehicle_snapshots import add_vehicle_snapshot
 from config import VEHICLES
+
+require_auth()
 
 st.set_page_config(page_title="Vehicle Snapshots", page_icon="🚙", layout="centered")
 st.title("🚙 Vehicle Year-End Snapshot")
