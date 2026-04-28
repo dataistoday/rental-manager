@@ -47,16 +47,18 @@ ocr/receipt_parser.py   # parse_receipt(bytes, file_name) → {vendor, date, amo
 utils/formatting.py     # format_currency(), format_phone(), status_badge(), etc.
 utils/cache.py          # safe_get_*() wrappers — graceful degradation on Sheets failure
 utils/auth_gate.py      # require_auth() — call at top of every page to enforce password gate
+utils/date_normalize.py # normalize_date_column() — fixes year-less backfill rows ("2/2" → 2026)
 
 pages/
   01_expense_capture.py   # Manual expense entry → IRS Schedule E form
                           # Defaults: Palm Harbor, Supplies; Tools checkbox applies 80% deduction
                           # Optional receipt image upload to Drive vault
-  02_mileage_tracker.py   # Odometer → miles + deduction at IRS rate; vehicle dropdown; defaults to Tampa
+  02_mileage_tracker.py   # Odometer OR Miles-only entry → deduction at IRS rate; vehicle dropdown; defaults to Tampa
   04_insurance_vault.py   # Read-only policy cards (populated manually in Sheets)
   05_vendor_directory.py  # Filterable contractor list
   06_tenant_log.py        # Chronological tenant interaction log
-  07_tax_summary.py       # Schedule E dashboard by year & property, CSV export
+  07_tax_summary.py       # Schedule E dashboard by year & property — Gross Income, Deductions, Net,
+                          # capital improvement section (Form 4562), CSV export for CPA
   08_lease_renewals.py    # Lease expiration alerts, color-coded by urgency
   09_inspection_log.py    # Move-in/out, annual, ad-hoc inspections + photos
   10_showings.py          # Prospective tenant showings — name, property, date/time, source, notes
@@ -250,9 +252,18 @@ Every legal/professional fee row should have BOTH in Drive:
 - HTML emails: tags are stripped before regex matching so amounts split across table cells are found
 
 ## Mileage Tracker Notes
+- Two entry modes: **Odometer** (start/end → miles auto-calculated) and **Miles only** (direct entry for backfilled trips with no odometer reading)
 - Refresh button on Trip History clears the 5-minute read cache instantly — use this after manual Sheet edits
 - Manually backfilled rows: dates entered as `2/1` style are fine if Google Sheets stores them as actual dates (right-aligned = date, left-aligned = text)
 - Deduction amount on manually entered rows: fill as `miles × 0.70`; app will calculate from miles column if deduction_amount is blank
+
+## Date Parsing — backfilled rows
+Sheets often stores manually-typed dates like `2/2` as year 0001, which would
+otherwise drop those rows out of any year-based filter on Tax Summary.
+`utils/date_normalize.py` handles this: any row whose parsed year is < 2020
+falls back to (1) the `timestamp` column's year if present, then (2) the
+`default_year` passed in (Tax Summary passes the year being viewed). All
+year-based aggregations on `pages/07_tax_summary.py` use this helper.
 
 ## Gmail Poller — Next Steps
 - [ ] Set up Windows Task Scheduler to run `py scripts/gmail_poller.py` every 5 minutes
